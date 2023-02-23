@@ -1,0 +1,4 @@
+(executable
+ (public_name sExprTest)
+ (name main)
+ (libraries sExprTest core base))

@@ -1,0 +1,10 @@
+(menhir
+ (modules parser))
+; this is how you call the menhir library
+(ocamllex lexer)
+
+(executable
+ (public_name lexers_parsers_adding)
+ (name main)
+ (libraries lexers_parsers_adding core))
+

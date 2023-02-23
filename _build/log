@@ -1,0 +1,5 @@
+# dune init project lexers_parsers_adding
+# OCAMLPARAM: unset
+# Shared cache: disabled
+# Workspace root: /home/danielnguyen/ocaml/pl_basics
+# Auto-detected concurrency: 8

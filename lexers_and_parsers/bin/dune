@@ -1,0 +1,4 @@
+(executable
+ (public_name lexers_and_parsers)
+ (name main)
+ (libraries lexers_and_parsers core base menhir ocamllex lexer))

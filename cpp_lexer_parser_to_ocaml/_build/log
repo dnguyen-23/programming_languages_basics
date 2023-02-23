@@ -1,0 +1,5 @@
+# dune init proj cpp_lexer_parser_to_ocaml
+# OCAMLPARAM: unset
+# Shared cache: disabled
+# Workspace root: /home/danielnguyen/ocaml/pl_basics/cpp_lexer_parser_to_ocaml
+# Auto-detected concurrency: 8

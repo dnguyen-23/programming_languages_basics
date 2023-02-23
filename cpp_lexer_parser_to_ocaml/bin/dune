@@ -1,0 +1,9 @@
+(menhir
+ (modules parser))
+
+(ocamllex lexer)
+
+(executable
+ (public_name cpp_lexer_parser_to_ocaml)
+ (name main)
+ (libraries cpp_lexer_parser_to_ocaml core))
