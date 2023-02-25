@@ -1,0 +1,4 @@
+(executable
+ (public_name lang_w_functions)
+ (name main)
+ (libraries lang_w_functions core str))
