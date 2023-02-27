@@ -213,31 +213,9 @@ let rec eval (t : term) (variables : (string * term) list) : (term * (string * t
       | (Tnum n1, Tnum n2) -> 
         
         (Tnum(n1 + n2), new_variables2)
-      | (ID(name, _ ), Tnum n1) -> 
-        let (possib_var, new_variables3) = eval (ID(name, Null(None))) new_variables2 in
-        (match possib_var with
-        | ID (_, found_value) ->
-          (match found_value with
-            | Tnum n2 -> 
-              (Tnum (n1 + n2), new_variables3)
-            | _ -> failwith "Error: Variable does not hold a number"
-          )  
-        | _ -> failwith ("Error: Number not found for variable")
-        )
-      | (Tnum n1, ID(name, _)) ->
-        let (possib_var, new_variables3) = eval (ID(name, Null(None))) new_variables2 in
-        (match possib_var with
-        | ID (_, found_value) ->
-          (match found_value with
-            | Tnum n2 -> 
-              
-              (Tnum (n1 + n2), new_variables3)
-            | _ -> failwith "Error: Variable does not hold a number"
-          )  
-        | _ -> failwith ("Error: Number not found for variable -> " ^ name)
-        )
+        | (Tnum n1, ID(_, Tnum n2)) | (ID(_, Tnum n1 ), Tnum n2) ->
+        (Tnum (n1 + n2), new_variables2)
         
-
       | _ -> failwith "Error: Adding"
     )
     
