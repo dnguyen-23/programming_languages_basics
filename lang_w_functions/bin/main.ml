@@ -156,6 +156,7 @@ let rec eval (t : term) (variables : (string * term) list) : (term * (string * t
   | ID (name, literal) ->
     let (e_literal, new_variables) = eval literal variables in
     (* let possib_var option = find_var name new_variables in *)
+    (* pretty_print (string_parse_result "" e_literal); *)
     (match find_var name new_variables with
     | Some (id_name, value) -> 
       (match e_literal with
@@ -168,7 +169,7 @@ let rec eval (t : term) (variables : (string * term) list) : (term * (string * t
       )
     | None -> 
       let new_variables2 = new_variables @ [(name, e_literal)] in
-      (t, new_variables2))
+      (ID(name, e_literal), new_variables2))
    
       
   | Null _ -> (t, variables)
@@ -209,6 +210,9 @@ let rec eval (t : term) (variables : (string * term) list) : (term * (string * t
     
     let (e_t1, new_variables) = eval t1 variables in
     let (e_t2, new_variables2) = eval t2 new_variables in
+    pretty_print "_______________";
+    pretty_print (string_parse_result "" e_t1);
+    pretty_print (string_parse_result "" e_t2);
     (match (e_t1, e_t2) with
       | (Tnum n1, Tnum n2) -> 
         
@@ -291,11 +295,22 @@ let buffer = "" in
 let result = string_parse_result buffer expression in
 Caml.print_endline result ;; *)
 
-let test_str = "((let x = 5) (x = (x + 2)))" in
+(* let test_str = "((let x = 5) (x = (x + 2)))" in
 let test_sexp = Sexp.of_string test_str in
 let term_result = parse test_sexp in
 pretty_print (string_parse_result "" term_result);
 
 let (e_term, _) = eval term_result [] in
-pretty_print (string_parse_result "" e_term);;
+pretty_print (string_parse_result "" e_term);; *)
   
+pretty_print "----------------";;
+
+let test_str2 = "((let x = 10) (let y = (x + 199)))" in
+let test_sexp2 = Sexp.of_string test_str2 in
+let term_result2 = parse test_sexp2 in
+pretty_print (string_parse_result "" term_result2);
+pretty_print "before eval ^^^";
+
+let (e_term2, _) = eval term_result2 [] in 
+pretty_print (string_parse_result "" e_term2);;
+(* This case shows that you have to evaluate the body one more time *)
