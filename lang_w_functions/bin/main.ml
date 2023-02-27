@@ -3,8 +3,8 @@ open Core;;
 let pretty_print inp_str = 
   Caml.print_endline "";
   Caml.print_endline inp_str;
+;;
 
-let all_variables = [];;
 
 type term = 
 | Tnum of int
@@ -15,10 +15,11 @@ type term =
 (* Binary Operators *)
 | Add of term * term
 | Equality of term * term
-| Assign of term * term
+| Assign of string * term
 (* 1.) name of the identifier; 2.) a body of terms or simply a term *)
 (* Should create a List for all identifiers created *)
 | ID of string * term 
+| Null of term option 
 (* Body expression *)
 | Body of term list
 
@@ -54,7 +55,7 @@ let rec parse (inp_sexp : Sexp.t) : term =
         Equality(p_t1, p_t2)
       | Sexp.Atom "=" -> 
         let p_t2 = parse t2 in
-        (match t2 with
+        (match t1 with
         | Sexp.Atom a ->
           Assign(a, p_t2)
         | _ -> failwith "Error: Invalid assignment"
@@ -65,9 +66,7 @@ let rec parse (inp_sexp : Sexp.t) : term =
     | [Sexp.Atom "let"; Sexp.Atom name; Sexp.Atom "="; value] ->
       let p_val = parse value in
       (* this parse function must also return a list of variables created *)
-      let res_var = ID(name, p_val)
-
-    
+      ID(name, p_val)
     (* 4.) body of expressions *)
     | _ -> Body (List.map ~f:parse l) (* parse each element in the list*)
     
@@ -76,7 +75,7 @@ let rec parse (inp_sexp : Sexp.t) : term =
   | Sexp.Atom a -> (* "a" a string*)
     if (Str.string_match (Str.regexp "-?[0-9]+$") a 0) then Tnum (int_of_string a)
     else if (String.equal a "false") || (String.equal a "true") then Tbool (Bool.of_string a)
-    else failwith "neither bool or num"
+    else ID(a, Null(None)) (*otherwise, assume that it is a variable call*)
   ;;
 
 
@@ -84,6 +83,12 @@ let rec string_parse_result buffer t =
   match t with
   | Tnum n -> buffer ^ "Num (" ^ (Int.to_string n) ^ ")"
   | Tbool b -> buffer ^ "Bool (" ^ (Bool.to_string b) ^ ")"
+  | Null _ -> buffer ^ "Null"
+  | ID(name, literal) -> 
+    let temp_buffer = buffer ^ "ID(" ^ name ^ ", " in
+    let buffer_w_literal = string_parse_result temp_buffer literal in
+    let final = buffer_w_literal ^ ")" in 
+    final
   | If_else (condition, body_expr1, body_expr2) -> 
     let temp_buffer = buffer ^ "if (" in
     let temp_buffer_w_cond = (string_parse_result temp_buffer condition) ^ ")\n" in
@@ -112,6 +117,11 @@ let rec string_parse_result buffer t =
     let final_buffer = string_parse_result buffer_w_op t2 in
     let final = final_buffer ^ ")" in
     final
+  | Assign(name, t1) -> 
+    let temp_buffer = buffer ^ "(" ^ name ^ " = " in
+    let buffer_w_literal = string_parse_result temp_buffer t1 in
+    let final = buffer_w_literal ^ ")" in
+    final
   | Body l -> 
     let rec body_to_string buffer expr_list =
       (match expr_list with
@@ -126,52 +136,164 @@ let rec string_parse_result buffer t =
     ;;
 ;;
 
-(* t is a series of term types *)
-let rec eval t =
+let find_var (name: string) (variables: (string * term) list) : (string * term) option =
+  let search_result = Stdlib.List.find_opt (fun x -> match x with 
+                                  | (possib_match, _ ) ->
+                                    if String.equal name possib_match 
+                                    then true
+                                    else false) variables in
+  search_result
+                                  ;;
+  
+
+
+(* t is a series of term types; but it still registers as a term *)
+(* variables starts off as an empty list *)
+let rec eval (t : term) (variables : (string * term) list) : (term * (string * term) list) =
   match t with
-  | Tnum _ -> t
-  | Tbool _ -> t
-  | Add (t1, t2) ->
-    let e_t1 = eval t1 in
-    let e_t2 = eval t2 in
-    (match (e_t1, e_t2) with
-    | (Tnum n1, Tnum n2) -> Tnum(n1 + n2)
-    | _ -> failwith "Error: Adding"
+  | Tnum _ -> (t, variables)
+  | Tbool _ -> (t, variables)
+  | ID (name, literal) ->
+    let (e_literal, new_variables) = eval literal variables in
+    (* let possib_var option = find_var name new_variables in *)
+    (match find_var name new_variables with
+    | Some (id_name, value) -> 
+      (match e_literal with
+      | Null(None) -> 
+        (* You have to look for the latest value for that variable name *)
+        (* let (var_name, var_literal) = find_var name new_variables in *)
+        (ID(id_name, value), new_variables)
+      | _ -> (t, new_variables)
+
+      )
+    | None -> 
+      let new_variables2 = new_variables @ [(name, e_literal)] in
+      (t, new_variables2))
+   
+      
+  | Null _ -> (t, variables)
+  | Assign(name, term_literal) ->
+    
+    (* name = variable name to assign to *)
+    (* term_literal = the term type that represents the literal*)
+
+    (* let possib_var option = find_var name variables in
+    let var_exists = (match possib_var with
+                      | Some (name, value) -> true
+                      | None -> false) in
+    if var_exists then 
+      let new_variables = List.map ~f:(fun x -> match x with 
+                                              | (name, _ ) -> (name, term_literal)
+                                              | _ -> x) variables in
+      let res_term = ID(name, value) in
+      (res_term, new_variables)
+    else 
+      failwith "Error: the variable doesn't exist" *)
+    (match find_var name variables with
+    | Some (_, _) -> 
+      let (new_literal, new_variables) = eval term_literal variables in
+      pretty_print (string_parse_result "" new_literal);
+      let new_variables2 = List.map ~f:(fun x -> match x with 
+                                              | (possib_name, old_literal ) -> 
+                                                if String.equal possib_name name 
+                                                then (name, new_literal)
+                                                else (possib_name, old_literal)
+                                              ) new_variables in
+      let res_term = ID(name, new_literal) in      
+      (res_term, new_variables2)
+    | None -> failwith "Error: the variable doesn't exist"
+
     )
+    
+  | Add (t1, t2) ->
+    
+    let (e_t1, new_variables) = eval t1 variables in
+    let (e_t2, new_variables2) = eval t2 new_variables in
+    (match (e_t1, e_t2) with
+      | (Tnum n1, Tnum n2) -> 
+        
+        (Tnum(n1 + n2), new_variables2)
+      | (ID(name, _ ), Tnum n1) -> 
+        let (possib_var, new_variables3) = eval (ID(name, Null(None))) new_variables2 in
+        (match possib_var with
+        | ID (_, found_value) ->
+          (match found_value with
+            | Tnum n2 -> 
+              (Tnum (n1 + n2), new_variables3)
+            | _ -> failwith "Error: Variable does not hold a number"
+          )  
+        | _ -> failwith ("Error: Number not found for variable")
+        )
+      | (Tnum n1, ID(name, _)) ->
+        let (possib_var, new_variables3) = eval (ID(name, Null(None))) new_variables2 in
+        (match possib_var with
+        | ID (_, found_value) ->
+          (match found_value with
+            | Tnum n2 -> 
+              
+              (Tnum (n1 + n2), new_variables3)
+            | _ -> failwith "Error: Variable does not hold a number"
+          )  
+        | _ -> failwith ("Error: Number not found for variable -> " ^ name)
+        )
+        
+
+      | _ -> failwith "Error: Adding"
+    )
+    
   | Equality (t1, t2) -> 
-    let e_t1 = eval t1 in
-    let e_t2 = eval t2 in
+    let (e_t1, new_variables) = eval t1 variables in
+    let (e_t2, new_variables2) = eval t2 new_variables in
     (match (e_t1, e_t2) with
     | (Tnum n1, Tnum n2) -> 
-      if n1 = n2 then Tbool(true) else Tbool(false)
+      if n1 = n2 then (Tbool(true), new_variables2) else (Tbool(false), new_variables2)
     | (Tbool b1, Tbool b2) ->
-      if b1 = b2 then Tbool(true) else Tbool(false)
+      if Bool.equal b1 b2 then (Tbool(true), new_variables2) else (Tbool(false), new_variables2)
     | _ -> failwith "Error: Equality"
     
     )
-  | Body l -> Body(List.iter ~f:parse l) (* This is only a temporary solution *)
+  | Body l -> (*Body(List.iter ~f:(fun x -> eval x) l) *)(* This is only a temporary solution *)
                                           (* Body should return a single value *)
+      let rec eval_body (current_body : term list) (current_variables : (string * term) list) : (term * (string * term) list) =
+        (match current_body with
+        | [] -> (Null(None), current_variables)
+        | [last_expr] -> 
+          (* pretty_print "----------------" ;
+          pretty_print (string_parse_result "" last_expr); *)
+          eval last_expr current_variables
+        | hd::tl -> 
+          (* pretty_print "+++++++++++++++++" ;
+          pretty_print (string_parse_result "" hd); *)
+          let (_, new_variables) = eval hd current_variables in
+          eval_body tl new_variables
+        )
+      in
+      eval_body l variables
   | If_else (condition, body_expr1, body_expr2) -> 
-    let e_condition = eval condition in
+    let (e_condition, new_variables) = eval condition variables in
     (match e_condition with
     | Tbool b -> 
-      if b then (eval body_expr1) else (eval body_expr2)
+      if b then (eval body_expr1 new_variables) else (eval body_expr2 new_variables)
     | _ -> failwith "Error: Condition is not a boolean"
     )
-    (* | For_loop (num_iterations, body_expr) ->
-    let e_iterations = eval num_iterations in
+  | For_loop (num_iterations, body_expr) ->
+    let (e_iterations, new_variables) = eval num_iterations variables in
     (match e_iterations with
     | Tnum n -> 
-      let rec for_loop_func i =
-        if i = -1 then
-
+      let rec for_loop_func (i : int) (body_expr: term) (current_variables: (string * term) list) : (term * (string * term) list) =
+        if i = 0 then
+          eval body_expr current_variables
         else 
-          eval  
+          let next_idx = i - 1 in
+          let (_, e_current_variables) = for_loop_func next_idx body_expr current_variables in
+          eval body_expr e_current_variables
+          (* true *)
+      in
+      for_loop_func n body_expr new_variables
     | _ -> failwith "Error: iterations expects a number"
 
-    )  *)
-  | 
-
+    ) 
+;;
 (* Caml.print_endline "";
 let bufFor = For_loop(Tnum(5), Body([Add(Tnum(5), Tnum(1))])) in
 let r = string_parse_result "" bufFor in
@@ -191,8 +313,11 @@ let buffer = "" in
 let result = string_parse_result buffer expression in
 Caml.print_endline result ;; *)
 
-let test_str = "(for 5 ((123 + 234) (234 + 345)))" in
+let test_str = "((let x = 5) (x = (x + 2)))" in
 let test_sexp = Sexp.of_string test_str in
 let term_result = parse test_sexp in
-pretty_print (string_parse_result "" term_result);;
+pretty_print (string_parse_result "" term_result);
+
+let (e_term, _) = eval term_result [] in
+pretty_print (string_parse_result "" e_term);;
   
