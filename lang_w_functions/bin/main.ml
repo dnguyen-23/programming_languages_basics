@@ -7,6 +7,7 @@ let pretty_print inp_str =
 
 
 type term = 
+(* Primitive datatypes *)
 | Tnum of int
 | Tbool of bool
 (* Control Structures *)
