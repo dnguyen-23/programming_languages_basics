@@ -195,12 +195,14 @@ let rec eval (t : term) (variables : (string * term) list) : (term * (string * t
     | Some (_, _) -> 
       let (new_literal, new_variables) = eval term_literal variables in
       pretty_print (string_parse_result "" new_literal);
-      let new_variables2 = List.map ~f:(fun x -> match x with 
-                                              | (possib_name, old_literal ) -> 
-                                                if String.equal possib_name name 
-                                                then (name, new_literal)
-                                                else (possib_name, old_literal)
-                                              ) new_variables in
+      
+      let update_variables (x : string*term) : string*term =
+        match x with 
+        | (possib_name, old_literal) -> 
+          if String.equal possib_name name then (name, new_literal)
+          else (possib_name, old_literal)
+        in
+      let new_variables2 = List.map ~f:update_variables new_variables in
       let res_term = ID(name, new_literal) in      
       (res_term, new_variables2)
     | None -> failwith "Error: the variable doesn't exist"
@@ -264,7 +266,7 @@ let rec eval (t : term) (variables : (string * term) list) : (term * (string * t
     (match e_iterations with
     | Tnum n -> 
       let rec for_loop_func (i : int) (body_expr: term) (current_variables: (string * term) list) : (term * (string * term) list) =
-        if i = 0 then
+        if i = 1 then
           eval body_expr current_variables
         else 
           let next_idx = i - 1 in
@@ -304,14 +306,23 @@ pretty_print (string_parse_result "" term_result);
 let (e_term, _) = eval term_result [] in
 pretty_print (string_parse_result "" e_term);; *)
   
-pretty_print "----------------";;
+(* pretty_print "----------------";;
 
 let test_str2 = "((let x = 10) (let y = (x + 199)))" in
 let test_sexp2 = Sexp.of_string test_str2 in
 let term_result2 = parse test_sexp2 in
 pretty_print (string_parse_result "" term_result2);
-pretty_print "before eval ^^^";
+pretty_print "before eval ^^^"; *)
 
-let (e_term2, _) = eval term_result2 [] in 
-pretty_print (string_parse_result "" e_term2);;
+(* let (e_term2, _) = eval term_result2 [] in 
+pretty_print (string_parse_result "" e_term2);; *)
 (* This case shows that you have to evaluate the body one more time *)
+
+pretty_print "----------------------";;
+let test_str = "((let x = 5) (for 3 (x = (x + 10))))" in
+let test_sexp = Sexp.of_string test_str in
+let test_parsed = parse test_sexp in
+pretty_print (string_parse_result "" test_parsed);
+pretty_print "before eval ^^^^\n" ;
+let (e_term, _ ) = eval test_parsed [] in
+pretty_print (string_parse_result "" e_term);;
