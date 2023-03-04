@@ -7,6 +7,7 @@ let pretty_print inp_str =
 
 
 type term = 
+(* Primitive datatypes *)
 | Tnum of int
 | Tbool of bool
 (* Control Structures *)
@@ -16,7 +17,9 @@ type term =
 | Add of term * term
 | Equality of term * term
 | Assign of string * term
-(* 1.) name of the identifier; 2.) a body of terms or simply a term *)
+(* Identifier constructor -> for variables *)
+(* 1.) name of the identifier 
+   2.) a body of terms or simply a term *)
 (* Should create a List for all identifiers created *)
 | ID of string * term 
 | Null of term option 
@@ -65,7 +68,6 @@ let rec parse (inp_sexp : Sexp.t) : term =
     (* 3.) variable *)
     | [Sexp.Atom "let"; Sexp.Atom name; Sexp.Atom "="; value] ->
       let p_val = parse value in
-      (* this parse function must also return a list of variables created *)
       ID(name, p_val)
     (* 4.) body of expressions *)
     | _ -> Body (List.map ~f:parse l) (* parse each element in the list*)
@@ -93,14 +95,13 @@ let rec string_parse_result buffer t =
     let temp_buffer = buffer ^ "if (" in
     let temp_buffer_w_cond = (string_parse_result temp_buffer condition) ^ ")\n" in
     let temp_buffer_w_body1 = (string_parse_result temp_buffer_w_cond body_expr1) ^ "\nelse\n" in
-    let final_buffer = string_parse_result temp_buffer_w_body1 body_expr2 in
-    let final = buffer ^ final_buffer in
+    let final = string_parse_result temp_buffer_w_body1 body_expr2 in
     final
   | For_loop (num_iterations, body_expr) ->
     let temp_buffer = buffer ^ "for (" in
     let temp_buffer_w_iter = (string_parse_result temp_buffer num_iterations) ^ ")\n" in
     let final_buffer = string_parse_result temp_buffer_w_iter body_expr in
-    let final = buffer ^ final_buffer in
+    let final = final_buffer in
     final
   (* printing binary operator expressions *)
   | Add (t1, t2) -> 
@@ -132,7 +133,7 @@ let rec string_parse_result buffer t =
         final
       )
     in 
-    body_to_string buffer l
+    "Body(\n\n" ^ (body_to_string buffer l) ^ "\n)"
     ;;
 ;;
 
@@ -155,7 +156,6 @@ let rec eval (t : term) (variables : (string * term) list) : (term * (string * t
   | Tbool _ -> (t, variables)
   | ID (name, literal) ->
     let (e_literal, new_variables) = eval literal variables in
-    (* let possib_var option = find_var name new_variables in *)
     (match find_var name new_variables with
     | Some (id_name, value) -> 
       (match e_literal with
@@ -168,37 +168,23 @@ let rec eval (t : term) (variables : (string * term) list) : (term * (string * t
       )
     | None -> 
       let new_variables2 = new_variables @ [(name, e_literal)] in
-      (t, new_variables2))
+      (ID(name, e_literal), new_variables2))
    
       
   | Null _ -> (t, variables)
   | Assign(name, term_literal) ->
-    
-    (* name = variable name to assign to *)
-    (* term_literal = the term type that represents the literal*)
-
-    (* let possib_var option = find_var name variables in
-    let var_exists = (match possib_var with
-                      | Some (name, value) -> true
-                      | None -> false) in
-    if var_exists then 
-      let new_variables = List.map ~f:(fun x -> match x with 
-                                              | (name, _ ) -> (name, term_literal)
-                                              | _ -> x) variables in
-      let res_term = ID(name, value) in
-      (res_term, new_variables)
-    else 
-      failwith "Error: the variable doesn't exist" *)
     (match find_var name variables with
     | Some (_, _) -> 
       let (new_literal, new_variables) = eval term_literal variables in
-      pretty_print (string_parse_result "" new_literal);
-      let new_variables2 = List.map ~f:(fun x -> match x with 
-                                              | (possib_name, old_literal ) -> 
-                                                if String.equal possib_name name 
-                                                then (name, new_literal)
-                                                else (possib_name, old_literal)
-                                              ) new_variables in
+      
+      
+      let update_variables (x : string*term) : string*term =
+        match x with 
+        | (possib_name, old_literal) -> 
+          if String.equal possib_name name then (name, new_literal)
+          else (possib_name, old_literal)
+        in
+      let new_variables2 = List.map ~f:update_variables new_variables in
       let res_term = ID(name, new_literal) in      
       (res_term, new_variables2)
     | None -> failwith "Error: the variable doesn't exist"
@@ -213,31 +199,9 @@ let rec eval (t : term) (variables : (string * term) list) : (term * (string * t
       | (Tnum n1, Tnum n2) -> 
         
         (Tnum(n1 + n2), new_variables2)
-      | (ID(name, _ ), Tnum n1) -> 
-        let (possib_var, new_variables3) = eval (ID(name, Null(None))) new_variables2 in
-        (match possib_var with
-        | ID (_, found_value) ->
-          (match found_value with
-            | Tnum n2 -> 
-              (Tnum (n1 + n2), new_variables3)
-            | _ -> failwith "Error: Variable does not hold a number"
-          )  
-        | _ -> failwith ("Error: Number not found for variable")
-        )
-      | (Tnum n1, ID(name, _)) ->
-        let (possib_var, new_variables3) = eval (ID(name, Null(None))) new_variables2 in
-        (match possib_var with
-        | ID (_, found_value) ->
-          (match found_value with
-            | Tnum n2 -> 
-              
-              (Tnum (n1 + n2), new_variables3)
-            | _ -> failwith "Error: Variable does not hold a number"
-          )  
-        | _ -> failwith ("Error: Number not found for variable -> " ^ name)
-        )
+        | (Tnum n1, ID(_, Tnum n2)) | (ID(_, Tnum n1 ), Tnum n2) ->
+        (Tnum (n1 + n2), new_variables2)
         
-
       | _ -> failwith "Error: Adding"
     )
     
@@ -258,12 +222,8 @@ let rec eval (t : term) (variables : (string * term) list) : (term * (string * t
         (match current_body with
         | [] -> (Null(None), current_variables)
         | [last_expr] -> 
-          (* pretty_print "----------------" ;
-          pretty_print (string_parse_result "" last_expr); *)
           eval last_expr current_variables
         | hd::tl -> 
-          (* pretty_print "+++++++++++++++++" ;
-          pretty_print (string_parse_result "" hd); *)
           let (_, new_variables) = eval hd current_variables in
           eval_body tl new_variables
         )
@@ -281,7 +241,7 @@ let rec eval (t : term) (variables : (string * term) list) : (term * (string * t
     (match e_iterations with
     | Tnum n -> 
       let rec for_loop_func (i : int) (body_expr: term) (current_variables: (string * term) list) : (term * (string * term) list) =
-        if i = 0 then
+        if i = 1 then
           eval body_expr current_variables
         else 
           let next_idx = i - 1 in
@@ -294,30 +254,85 @@ let rec eval (t : term) (variables : (string * term) list) : (term * (string * t
 
     ) 
 ;;
-(* Caml.print_endline "";
-let bufFor = For_loop(Tnum(5), Body([Add(Tnum(5), Tnum(1))])) in
-let r = string_parse_result "" bufFor in
-Caml.print_endline r;
-Caml.print_endline "\n\nfinished";
-
-let bufBool = Tbool(true) in
-let bufBody = Body([bufFor; bufBool]) in
-let buffer_1 = "" in
-let result_1 = string_parse_result buffer_1 bufBody in
-Caml.print_endline result_1 ;;
-Caml.print_endline "\n\n" ;;
 
 
-let expression = If_else (Equality(Tnum (1), Tnum (2)), Add(Tnum(12), Tnum(23)), Add(Tnum(100), Tnum(200))) in
-let buffer = "" in
-let result = string_parse_result buffer expression in
-Caml.print_endline result ;; *)
+let print_result expression = 
+  let s_expr = Sexp.of_string expression in
+  let p_expr = parse s_expr in
+  let result = string_parse_result "" p_expr in
+  pretty_print "**Printing out AST**" ;
+  pretty_print result;
+  
+  let (evald_result, _) = eval p_expr [] in
+  pretty_print "**This is the result**";
+  pretty_print (string_parse_result "" evald_result)
+;;
 
-let test_str = "((let x = 5) (x = (x + 2)))" in
+pretty_print "";
+(*
+(* Testing if else expressions *)
+pretty_print "*****Testing if-else expressions with variable definition*****"; 
+let expression = "((let x = 0) (if ((2 + 2) == (3 + 1)) (x = (x + 5)) else (x = (x + 100)) ) )" in
+let s_expr = Sexp.of_string expression in
+(* let expression = If_else (Equality(Tnum (1), Tnum (2)), Add(Tnum(12), Tnum(23)), Add(Tnum(100), Tnum(200))) in *)
+let p_expr = parse s_expr in
+let result = string_parse_result "" p_expr in 
+pretty_print "**Printing out AST**";
+pretty_print result;
+let (evald_result, _) = eval p_expr [] in
+pretty_print "**This is the result**";
+pretty_print (string_parse_result "" evald_result);; *)
+
+
+pretty_print "*****Testing if-else expressions with variable definition*****"; 
+let expression = "((let x = 0) (if ((2 + 2) == (3 + 1)) (x = (x + 5)) else (x = (x + 100)) ) )" in
+print_result expression;
+
+pretty_print "----------------------";;
+
+(* Testing for loop expressions *)
+(* pretty_print "*****Testing for loop expressions with variable definition*****";
+let expression = "((let x = 0) (for 3 (x = (x + 10))))" in
+let s_expr = Sexp.of_string expression in
+let p_expr = parse s_expr in
+pretty_print "**Printing out AST**" ;
+pretty_print (string_parse_result "" p_expr);
+let (evald_result, _ ) = eval p_expr [] in
+pretty_print "**This is the result**";
+pretty_print (string_parse_result "" evald_result);; *)
+
+pretty_print "*****Testing for loop expressions with variable definition*****";
+let expression = "((let x = 0) (for 3 (x = (x + 10))))" in
+print_result expression;
+
+
+
+
+
+
+
+
+
+
+
+
+(* let test_str = "((let x = 5) (x = (x + 2)))" in
 let test_sexp = Sexp.of_string test_str in
 let term_result = parse test_sexp in
 pretty_print (string_parse_result "" term_result);
 
 let (e_term, _) = eval term_result [] in
-pretty_print (string_parse_result "" e_term);;
+pretty_print (string_parse_result "" e_term);; *)
   
+(* pretty_print "----------------";;
+
+let test_str2 = "((let x = 10) (let y = (x + 199)))" in
+let test_sexp2 = Sexp.of_string test_str2 in
+let term_result2 = parse test_sexp2 in
+pretty_print (string_parse_result "" term_result2);
+pretty_print "before eval ^^^"; *)
+
+(* let (e_term2, _) = eval term_result2 [] in 
+pretty_print (string_parse_result "" e_term2);; *)
+(* This case shows that you have to evaluate the body one more time *)
+
