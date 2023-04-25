@@ -22,6 +22,14 @@ type term =
    2.) a body of terms or simply a term *)
 (* Should create a List for all identifiers created *)
 | ID of string * term 
+
+(* Function identifier constructor  *)
+(* 1.) name of the function
+   2.) parameter list
+   3.) body of the function *)
+(* Should be added to the list of all identifiers created *)
+| FuncID of string * string list * term 
+| Params of string list
 | Null of term option 
 (* Body expression *)
 | Body of term list
@@ -69,7 +77,20 @@ let rec parse (inp_sexp : Sexp.t) : term =
     | [Sexp.Atom "let"; Sexp.Atom name; Sexp.Atom "="; value] ->
       let p_val = parse value in
       ID(name, p_val)
-    (* 4.) body of expressions *)
+    (* 4.) function definition *)
+    | [Sexp.Atom "function"; Sexp.Atom name; Sexp.List parameters; body] ->
+      let p_body = parse body in
+      let parse_params p = 
+        (match p with
+        | Sexp.Atom p_name -> p_name
+        | _ -> failwith "This is not a valid parameter name"
+        )
+      in
+      let p_params = Params(List.map ~f:parse_params parameters) in
+      FuncID(name, p_params, p_body)
+
+
+    (* 6.) body of expressions *)
     | _ -> Body (List.map ~f:parse l) (* parse each element in the list*)
     
     
@@ -269,20 +290,6 @@ let print_result expression =
 ;;
 
 pretty_print "";
-(*
-(* Testing if else expressions *)
-pretty_print "*****Testing if-else expressions with variable definition*****"; 
-let expression = "((let x = 0) (if ((2 + 2) == (3 + 1)) (x = (x + 5)) else (x = (x + 100)) ) )" in
-let s_expr = Sexp.of_string expression in
-(* let expression = If_else (Equality(Tnum (1), Tnum (2)), Add(Tnum(12), Tnum(23)), Add(Tnum(100), Tnum(200))) in *)
-let p_expr = parse s_expr in
-let result = string_parse_result "" p_expr in 
-pretty_print "**Printing out AST**";
-pretty_print result;
-let (evald_result, _) = eval p_expr [] in
-pretty_print "**This is the result**";
-pretty_print (string_parse_result "" evald_result);; *)
-
 
 pretty_print "*****Testing if-else expressions with variable definition*****"; 
 let expression = "((let x = 0) (if ((2 + 2) == (3 + 1)) (x = (x + 5)) else (x = (x + 100)) ) )" in
@@ -290,16 +297,6 @@ print_result expression;
 
 pretty_print "----------------------";;
 
-(* Testing for loop expressions *)
-(* pretty_print "*****Testing for loop expressions with variable definition*****";
-let expression = "((let x = 0) (for 3 (x = (x + 10))))" in
-let s_expr = Sexp.of_string expression in
-let p_expr = parse s_expr in
-pretty_print "**Printing out AST**" ;
-pretty_print (string_parse_result "" p_expr);
-let (evald_result, _ ) = eval p_expr [] in
-pretty_print "**This is the result**";
-pretty_print (string_parse_result "" evald_result);; *)
 
 pretty_print "*****Testing for loop expressions with variable definition*****";
 let expression = "((let x = 0) (for 3 (x = (x + 10))))" in
